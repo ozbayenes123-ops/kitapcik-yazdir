@@ -1,6 +1,6 @@
 [package]
 name = "kitapcik-yazdir"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 description = "PDF kitapları A4'e 2xA5 kitapçık (booklet) düzeninde baskıya hazırlar (CLI + GUI)"
 license = "MIT"

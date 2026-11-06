@@ -290,20 +290,15 @@ fn formlari_kur(
                 Object::Real(h as f32),
             ],
         );
-        // CropBox kökeni sıfır değilse içeriği kaydır; yoksa tarayıcı yatağının
-        // siyah kenarı görünür alana girer (yarısı siyah sayfa belirtisi).
+        // CropBox kökeni sıfır değilse içeriği kaydır. Matrix kullanmak yerine
+        // içerik akışının başına cm yazıyoruz: formun BBox'ı kendi uzayında
+        // kalmalı, yoksa klip penceresi de kayar ve sayfa köşeye oturur.
+        let mut icerik = icerik;
         if x0.abs() > 0.01 || y0.abs() > 0.01 {
-            form_dict.set(
-                "Matrix",
-                vec![
-                    Object::Integer(1),
-                    Object::Integer(0),
-                    Object::Integer(0),
-                    Object::Integer(1),
-                    Object::Real(-x0 as f32),
-                    Object::Real(-y0 as f32),
-                ],
-            );
+            let mut kaydirilmis = format!("q\n1 0 0 1 {:.4} {:.4} cm\n", -x0, -y0).into_bytes();
+            kaydirilmis.extend_from_slice(&icerik);
+            kaydirilmis.extend_from_slice(b"\nQ\n");
+            icerik = kaydirilmis;
         }
         form_dict.set("Resources", resources);
 

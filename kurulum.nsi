@@ -3,7 +3,7 @@ Unicode True
 !include "MUI2.nsh"
 
 Name "Kitapçık Yazdır"
-OutFile "KitapcikYazdir-0.3-Kurulum.exe"
+OutFile "KitapcikYazdir-0.3.1-Kurulum.exe"
 InstallDir "$LOCALAPPDATA\Programs\Kitapçık Yazdır"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
@@ -35,7 +35,7 @@ Section "Program" SecProg
   CreateShortcut "$SMPROGRAMS\Kitapçık Yazdır\Kitapçık Yazdır.lnk" "$INSTDIR\kitapcik-gui.exe" "" "$INSTDIR\kitapcik-gui.exe" 0
   CreateShortcut "$SMPROGRAMS\Kitapçık Yazdır\Kaldır.lnk" "$INSTDIR\kaldir.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KitapcikYazdir" "DisplayName" "Kitapçık Yazdır"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KitapcikYazdir" "DisplayVersion" "0.3"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KitapcikYazdir" "DisplayVersion" "0.3.1"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KitapcikYazdir" "Publisher" "Kitapçık Yazdır"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KitapcikYazdir" "UninstallString" "$INSTDIR\kaldir.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KitapcikYazdir" "InstallLocation" "$INSTDIR"

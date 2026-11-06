@@ -55,7 +55,7 @@ Kağıt **A4** • Yön **Yatay** • Çift taraflı **KISA kenardan** • Ölç
 ## Kurulum
 
 **Hazır kurulum (Windows):** [Releases](../../releases) sayfasındaki
-`KitapcikYazdir-0.3-Kurulum.exe`. Kullanıcı düzeyinde kurulur, yönetici izni istemez
+`KitapcikYazdir-0.3.1-Kurulum.exe`. Kullanıcı düzeyinde kurulur, yönetici izni istemez
 (`%LOCALAPPDATA%\Programs\Kitapçık Yazdır`).
 
 **Kaynaktan derleme:**
