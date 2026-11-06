@@ -32,8 +32,11 @@ fn obj_f64(o: &Object) -> f64 {
     0.0
 }
 
-/// Sayfa sözlüğünden (CropBox > MediaBox) genişlik/yükseklik çıkar.
-fn sayfa_olcusu(dict: &Dictionary) -> (f64, f64) {
+/// Sayfa sözlüğünden (CropBox > MediaBox) genişlik/yükseklik ve sol-alt kökeni çıkar.
+/// Köken (x0, y0) önemlidir: tarama PDF'lerinde içerik MediaBox koordinatlarında
+/// durur, görünür alan ise CropBox'tır. Kökeni yok sayarsan tarayıcı yatağının
+/// siyah kenarı sayfaya sızar.
+fn sayfa_olcusu_koken(dict: &Dictionary) -> (f64, f64, f64, f64) {
     for key in [b"CropBox".as_slice(), b"MediaBox".as_slice()] {
         if let Ok(obj) = dict.get(key) {
             if let Ok(arr) = obj.as_array() {
@@ -45,13 +48,13 @@ fn sayfa_olcusu(dict: &Dictionary) -> (f64, f64) {
                     let w = (x1 - x0).abs();
                     let h = (y1 - y0).abs();
                     if w > 10.0 && h > 10.0 {
-                        return (w, h);
+                        return (w, h, x0.min(x1), y0.min(y1));
                     }
                 }
             }
         }
     }
-    (A4_W, A4_H)
+    (A4_W, A4_H, 0.0, 0.0)
 }
 
 /// PDF ASCII85Decode filtresi (Adobe varyantı: `z` = 4 sıfır bayt, `~>` = son).
@@ -271,7 +274,7 @@ fn formlari_kur(
             .get(b"Resources")
             .cloned()
             .unwrap_or_else(|_| Object::Dictionary(Dictionary::new()));
-        let (w, h) = sayfa_olcusu(&page_dict);
+        let (w, h, x0, y0) = sayfa_olcusu_koken(&page_dict);
         let icerik = sayfa_icerik_coz(doc, pid)
             .with_context(|| format!("sayfa {n} içeriği çözülemedi"))?;
 
@@ -287,6 +290,21 @@ fn formlari_kur(
                 Object::Real(h as f32),
             ],
         );
+        // CropBox kökeni sıfır değilse içeriği kaydır; yoksa tarayıcı yatağının
+        // siyah kenarı görünür alana girer (yarısı siyah sayfa belirtisi).
+        if x0.abs() > 0.01 || y0.abs() > 0.01 {
+            form_dict.set(
+                "Matrix",
+                vec![
+                    Object::Integer(1),
+                    Object::Integer(0),
+                    Object::Integer(0),
+                    Object::Integer(1),
+                    Object::Real(-x0 as f32),
+                    Object::Real(-y0 as f32),
+                ],
+            );
+        }
         form_dict.set("Resources", resources);
 
         let form_id = doc.new_object_id();
