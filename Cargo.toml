@@ -1,0 +1,27 @@
+[package]
+name = "kitapcik-yazdir"
+version = "0.3.0"
+edition = "2021"
+description = "PDF kitapları A4'e 2xA5 kitapçık (booklet) düzeninde baskıya hazırlar (CLI + GUI)"
+license = "MIT"
+
+[lib]
+name = "kitapcik_yazdir"
+path = "src/lib.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+lopdf = "0.32"
+flate2 = "1"
+eframe = "0.32"
+egui = "0.32"
+rfd = "0.15"
+
+[[bin]]
+name = "kitapcik-yazdir"
+path = "src/main.rs"
+
+[[bin]]
+name = "kitapcik-gui"
+path = "src/bin/kitapcik-gui.rs"

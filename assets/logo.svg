@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Kitapçık Yazdır logosu">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0E7490"/>
+      <stop offset="1" stop-color="#134E4A"/>
+    </linearGradient>
+    <linearGradient id="sayfa" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E2E8F0"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#bg)"/>
+  <!-- sol sayfa -->
+  <rect x="52" y="72" width="72" height="112" rx="8" fill="url(#sayfa)"/>
+  <!-- sag sayfa -->
+  <rect x="132" y="72" width="72" height="112" rx="8" fill="url(#sayfa)"/>
+  <!-- satirlar -->
+  <g fill="#94A3B8">
+    <rect x="62" y="94" width="52" height="7" rx="3.5"/>
+    <rect x="62" y="111" width="52" height="7" rx="3.5"/>
+    <rect x="62" y="128" width="38" height="7" rx="3.5"/>
+    <rect x="142" y="94" width="52" height="7" rx="3.5"/>
+    <rect x="142" y="111" width="52" height="7" rx="3.5"/>
+    <rect x="142" y="128" width="38" height="7" rx="3.5"/>
+  </g>
+  <!-- sayfa numaralari: sol 12, sag 1 -->
+  <g font-family="sans-serif" font-size="20" font-weight="bold" fill="#0F766E" text-anchor="middle">
+    <text x="88" y="168">12</text>
+    <text x="168" y="168">1</text>
+  </g>
+  <!-- kat cizgisi -->
+  <line x1="128" y1="62" x2="128" y2="194" stroke="#F87171" stroke-width="5"
+        stroke-dasharray="10 8" stroke-linecap="round"/>
+  <!-- koselerde kesim isareti -->
+  <g stroke="#5EEAD4" stroke-width="4" stroke-linecap="round" opacity="0.8">
+    <line x1="28" y1="44" x2="44" y2="44"/>
+    <line x1="28" y1="44" x2="28" y2="60"/>
+    <line x1="228" y1="44" x2="212" y2="44"/>
+    <line x1="228" y1="44" x2="228" y2="60"/>
+    <line x1="28" y1="212" x2="44" y2="212"/>
+    <line x1="28" y1="212" x2="28" y2="196"/>
+    <line x1="228" y1="212" x2="212" y2="212"/>
+    <line x1="228" y1="212" x2="228" y2="196"/>
+  </g>
+</svg>

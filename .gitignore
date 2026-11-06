@@ -1,0 +1,6 @@
+/target
+/paket
+/nsis
+/onizleme
+*.exe
+*.pdb
