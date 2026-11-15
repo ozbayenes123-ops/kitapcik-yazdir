@@ -73,7 +73,7 @@ struct Cli {
     #[arg(long)]
     onizleme_dizin: Option<PathBuf>,
 
-    /// Yazıcıları listele (Windows Get-Printer)
+    /// Yazıcıları listele (Windows: Get-Printer • Linux/macOS: CUPS lpstat)
     #[arg(long, default_value_t = false)]
     yazici_listele: bool,
 
@@ -85,7 +85,7 @@ struct Cli {
     #[arg(long)]
     yazici: Option<String>,
 
-    /// Kopya sayısı (bilgi + --yazdir ile Sumatra'ya aktarılır)
+    /// Kopya sayısı (bilgi + --yazdir ile yazıcıya aktarılır)
     #[arg(long, default_value_t = 1)]
     kopya: u32,
 
@@ -218,7 +218,7 @@ fn main() -> Result<()> {
         };
         yazici::pdf_yazdir_sec(&cikti, &sec)?;
     } else {
-        println!("İpucu: çıktıyı Adobe/Sumatra ile açıp yazdırın; ölçek %100 (\"Gerçek boyut\"), kağıt A4, yön Yatay.");
+        println!("{}", yazici::yazdirma_ipucu());
         println!("      Doğrudan göndermek için aynı komuta --yazdir ekleyin.");
     }
     Ok(())

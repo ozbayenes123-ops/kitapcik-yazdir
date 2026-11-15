@@ -76,6 +76,31 @@ cargo build --release
 - Kurulum paketi (NSIS) üretmek için `makensis` gerekir; `kurulum.nsi` ve
   `kurulum/install-scoop.ps1` (scoop ile NSIS kurulumu) repoda.
 
+## Linux
+
+```bash
+git clone https://github.com/ozbayenes123-ops/kitapcik-yazdir.git
+cd kitapcik-yazdir
+./kur-linux.sh          # derler + ~/.local/bin'e kurar + menü kısayolu ekler
+```
+
+Elle derleme: `cargo build --release` → `target/release/kitapcik-yazdir` (CLI) ve
+`target/release/kitapcik-gui` (GUI). GUI için X11/Wayland geliştirme kütüphaneleri
+(`libxkbcommon`, `libx11`, `libxcursor`, `libxrandr`, `libxi`, `libgl`), dosya seçici için
+`gtk3` gerekir; çoğu masaüstü dağıtımında hazır gelir.
+
+**Yazdırma (CUPS):** program `lpstat` ile yazıcıları listeler, `lp` ile kuyruğa gönderir;
+A4 + %100 ölçek + çift taraflı seçeneklerini kendisi verir.
+
+```bash
+sudo pacman -S cups cups-filters && sudo systemctl enable --now cups   # Arch/CachyOS
+sudo apt install cups cups-client                                      # Debian/Ubuntu
+# yazıcı ekleme: http://localhost:631
+```
+
+Windows'ta yazdırma SumatraPDF / Adobe / Foxit üzerinden yürür; Linux'ta bu yol yerine
+CUPS kullanılır. Diğer her şey (impozisyon, önizleme, fasikül, ölçüler) iki platformda aynıdır.
+
 ## Sınırlamalar
 
 - Şifreli (parolalı) PDF'ler açılamaz.

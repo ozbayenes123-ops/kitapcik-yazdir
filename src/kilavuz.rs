@@ -46,9 +46,18 @@ SORUN GİDERME
 • Sıra bozuk görünüyor → Ölçek %100 mü? "Sığdır" kapalı mı? Duplex KISA mı?
 • Sayfalar kaymış → Kenar/orta payı büyütün (önce 4/6 mm deneyin).
 • Sonda boş sayfa var → Normaldir: 4'ün katına tamamlanır.
-• "İçerik çözülemedi" → PDF'i bir kez "Microsoft Print to PDF" ile yeniden
+• "İçerik çözülemedi" → PDF'i bir kez "Yazdır > PDF olarak kaydet" ile yeniden
   kaydedip onu girdi yapın.
 • Yazıcı listesi boş → Yazıcınız kapalı ya da USB'de olabilir; "Yenile"ye basın.
+
+LINUX (CUPS)
+------------
+• Yazdırma altyapısı CUPS'tır; program `lp` ile kuyruğa gönderir.
+• Kurulum: sudo pacman -S cups cups-filters && sudo systemctl enable --now cups
+  (Debian/Ubuntu: sudo apt install cups cups-client)
+• Yazıcı ekleme: tarayıcıdan http://localhost:631 adresine girin.
+• Yazıcı listesi: lpstat -p -d   •  Kuyruk: lpstat -o  •  İptal: cancel -a
+• Program kağıt (A4), ölçek (%100) ve çift taraflı seçeneklerini kendisi verir.
 
 TERİMLER
 --------

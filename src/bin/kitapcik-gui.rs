@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(windows, windows_subsystem = "windows")]
 //! Kitapçık Yazdır — pencereli arayüz (egui).
 //! Bölümler: Dosyalar • Sayfalar • Düzen • Yazıcı • Önizleme • Kılavuz • Durum.
 
@@ -268,9 +268,16 @@ impl Gui {
         if self.cikti.is_empty() {
             return;
         }
-        let _ = yazici::gizli(std::process::Command::new("cmd"))
-            .args(["/C", "start", "", &self.cikti])
-            .spawn();
+        #[cfg(windows)]
+        {
+            let _ = yazici::gizli(std::process::Command::new("cmd"))
+                .args(["/C", "start", "", &self.cikti])
+                .spawn();
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = std::process::Command::new("xdg-open").arg(&self.cikti).spawn();
+        }
         self.gunluk("Çıktı varsayılan PDF okuyucuda açıldı.");
     }
 
@@ -285,19 +292,17 @@ impl Gui {
         }
     }
 
-    fn sumatra_kur_baslat(&mut self) {
+    fn altyapi_kur_baslat(&mut self) {
         if self.kuruluyor {
             return;
         }
         self.kuruluyor = true;
-        self.gunluk("SumatraPDF kuruluyor (1-2 dk sürebilir; pencereyi kapatmayın)...");
+        self.gunluk("Yazdırma altyapısı hazırlanıyor...");
         let paylas = Arc::clone(&self.kurulum);
         std::thread::spawn(move || {
-            let sonuc = match yazici::sumatra_kur() {
-                Ok(()) => "SumatraPDF kuruldu. Şimdi 3) Yazdır'a basın.".to_string(),
-                Err(e) => format!(
-                    "Kurulum başarısız: {e:#}\nİnterneti kontrol edip tekrar deneyin ya da Adobe Reader kurun."
-                ),
+            let sonuc = match yazici::altyapi_kur() {
+                Ok(()) => "Kurulum tamam. Şimdi 3) Yazdır'a basın.".to_string(),
+                Err(e) => format!("{e:#}"),
             };
             *paylas.lock().unwrap() = Some(sonuc);
         });
@@ -636,16 +641,16 @@ impl eframe::App for Gui {
                 });
                 if self.arka_uc.starts_with("YOK") && !self.kuruluyor {
                     ui.horizontal(|ui| {
-                        ui.label("Sebep: varsayılan PDF okuyucunuz (Edge) doğrudan yazdırmaz.");
-                        if ui.button("SumatraPDF Kur (önerilen, ücretsiz)").clicked() {
-                            self.sumatra_kur_baslat();
+                        ui.label(yazici::altyapi_sebep());
+                        if ui.button(yazici::altyapi_kur_etiketi()).clicked() {
+                            self.altyapi_kur_baslat();
                         }
                     });
                 }
                 if self.kuruluyor {
                     ui.horizontal(|ui| {
                         ui.spinner();
-                        ui.label("SumatraPDF kuruluyor… pencereyi kapatmayın.");
+                        ui.label(yazici::altyapi_kurulum_mesaji());
                     });
                 }
                 ui.horizontal(|ui| {
