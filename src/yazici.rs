@@ -62,7 +62,9 @@ pub fn surucu_hatirlatmasi_full(duplex: &str, kopya: u32, renkli: bool) {
         "kisa" => println!("  Çift taraflı : AÇIK, 'KISA kenardan çevir' (kitapçık için DOĞRUSU budur)"),
         _ => println!("  Çift taraflı : AÇIK, 'UZUN kenardan çevir' (DİKKAT: yatay kitapçıkta genelde KISA gerekir)"),
     }
-    println!("  Ölçek        : %100 / \"Gerçek boyut\" / \"Sığdır\" KAPALI (küçültme sayfayı kaydırır)");
+    println!(
+        "  Ölçek        : %100 / \"Gerçek boyut\" / \"Sığdır\" KAPALI (küçültme sayfayı kaydırır)"
+    );
     println!(
         "  Renk         : {}",
         if renkli { "Renkli" } else { "Siyah-beyaz" }
@@ -74,7 +76,9 @@ pub fn surucu_hatirlatmasi_full(duplex: &str, kopya: u32, renkli: bool) {
     if cfg!(windows) {
         println!("  Not          : SumatraPDF'e gönderirken ölçek, duplex ve kopya aktarılır");
     } else {
-        println!("  Not          : CUPS'a gönderirken kağıt/yön/duplex seçenekleri otomatik verilir");
+        println!(
+            "  Not          : CUPS'a gönderirken kağıt/yön/duplex seçenekleri otomatik verilir"
+        );
     }
     println!("==========================================================");
     println!();
@@ -191,6 +195,34 @@ mod win {
         }
     }
 
+    /// Windows varsayılan yazıcısının adı (yoksa None).
+    pub fn varsayilan_yazici() -> Option<String> {
+        let out = gizli(std::process::Command::new("powershell"))
+            .args([
+                "-NoProfile",
+                "-Command",
+                "(Get-CimInstance Win32_Printer -Filter 'Default=TRUE' | Select-Object -First 1 -ExpandProperty Name)",
+            ])
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let ad = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if ad.is_empty() {
+            None
+        } else {
+            Some(ad)
+        }
+    }
+
+    /// Windows'ta hiç yazıcı tanımlı değilse gösterilecek yardım.
+    pub fn yazici_yardim_metni() -> String {
+        "Windows'ta tanımlı yazıcı bulunamadı.\n  Ayarlar → Bluetooth ve cihazlar → Yazıcılar ve tarayıcılar bölümünden \
+         yazıcı ekleyin, sonra Yenile'ye basın."
+            .into()
+    }
+
     /// Kurulu yazıcıları tablo olarak listeler.
     pub fn yazicilari_listele() -> Result<()> {
         println!("Kurulu yazıcılar (PowerShell Get-Printer):");
@@ -300,7 +332,9 @@ mod win {
             }
             ArkaUc::Adobe(exe) => {
                 // AcroRd32/Acrobat: /t "pdf" "yazıcı" — kopya/duplex sürücüden alınır
-                println!("Adobe bulundu — yazdırılıyor (kopya/duplex'i açılan pencereden doğrulayın)...");
+                println!(
+                    "Adobe bulundu — yazdırılıyor (kopya/duplex'i açılan pencereden doğrulayın)..."
+                );
                 let mut cmd = std::process::Command::new(&exe);
                 cmd.arg("/t").arg(pdf_s);
                 if let Some(ad) = yazici {
@@ -425,6 +459,131 @@ mod unix {
         adlar
     }
 
+    /// Sistem varsayılanı olarak tanımlı yazıcı adı (yoksa None).
+    /// `lpstat -d` çıktısı: "system default destination: <ad>".
+    pub fn varsayilan_yazici() -> Option<String> {
+        let out = std::process::Command::new("lpstat")
+            .arg("-d")
+            .env("LC_ALL", "C")
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        varsayilan_ayikla(&String::from_utf8_lossy(&out.stdout))
+    }
+
+    fn varsayilan_ayikla(metin: &str) -> Option<String> {
+        metin.lines().find_map(|satir| {
+            let (_, ad) = satir.trim().split_once(':')?;
+            let ad = ad.trim();
+            let gecersiz = ad.is_empty()
+                || ad.contains(char::is_whitespace)
+                || ad.to_ascii_lowercase().contains("no system default");
+            (!gecersiz).then(|| ad.to_string())
+        })
+    }
+
+    /// CUPS zamanlayıcısı çalışıyor mu?
+    /// `lpstat -r` bağlantı kurulamasa bile 0 döner; bu yüzden çıktı ayrıştırılır.
+    fn cups_calisiyor() -> bool {
+        std::process::Command::new("lpstat")
+            .arg("-r")
+            .env("LC_ALL", "C")
+            .output()
+            .map(|o| {
+                o.status.success() && cups_calisiyor_ayikla(&String::from_utf8_lossy(&o.stdout))
+            })
+            .unwrap_or(false)
+    }
+
+    fn cups_calisiyor_ayikla(metin: &str) -> bool {
+        let s = metin.to_ascii_lowercase();
+        s.contains("running") && !s.contains("not running")
+    }
+
+    /// CUPS'a henüz eklenmemiş doğrudan cihazları (usb://, hp:/...) döndürür.
+    fn algilanan_cihazlar() -> Vec<String> {
+        let Ok(out) = std::process::Command::new("lpinfo").arg("-v").output() else {
+            return Vec::new();
+        };
+        if !out.status.success() {
+            return Vec::new();
+        }
+        cihazlari_ayikla(&String::from_utf8_lossy(&out.stdout))
+    }
+
+    fn cihazlari_ayikla(metin: &str) -> Vec<String> {
+        metin
+            .lines()
+            .filter_map(|satir| satir.trim().strip_prefix("direct "))
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect()
+    }
+
+    /// "No default destination" / "lp başarısız" durumunda gösterilecek,
+    /// adım adım çözüm metni. Yazıcı hiç tanımlı değilse çağrılır.
+    pub fn yazici_yardim_metni() -> String {
+        if yolda_bul("lpstat").is_none() {
+            return "CUPS araçları kurulu değil (lpstat yok).\n  Arch: sudo pacman -S cups cups-filters && sudo systemctl enable --now cups\n  Debian/Ubuntu: sudo apt install cups cups-client".into();
+        }
+        if !cups_calisiyor() {
+            return "CUPS servisi çalışmıyor.\n  Arch: sudo systemctl enable --now cups\n  Debian/Ubuntu: sudo systemctl enable --now cups\n  Ardından --yazici-listele ile kontrol edin.".into();
+        }
+        let cihazlar = algilanan_cihazlar();
+        let mut m = String::from(
+            "CUPS'ta tanımlı yazıcı yok (\"No default destination\" hatasının sebebi budur).",
+        );
+        if cihazlar.is_empty() {
+            m.push_str(
+                "\nUSB yazıcı algılanmadı: yazıcıyı açıp bağlayın, sonra: sudo systemctl restart cups",
+            );
+        } else {
+            m.push_str("\nAlgılanan doğrudan cihaz(lar):");
+            for c in &cihazlar {
+                m.push_str(&format!("\n  • {c}"));
+            }
+            m.push_str(
+                "\nYazıcıyı ekleyin: sistem ayarları → Yazıcılar ya da http://localhost:631 \
+                 (Administration → Add Printer).",
+            );
+            if cihazlar.iter().any(|c| c.starts_with("usb://HP/")) {
+                m.push_str("\nHP USB yazıcı sürücüsü gerekebilir: sudo pacman -S hplip");
+            }
+        }
+        m
+    }
+
+    /// Kullanılacak yazıcıyı çözer: açık seçim → sistem varsayılanı → tek kurulu yazıcı.
+    /// Hiçbiri yoksa anlaşılır bir hata üretir; böylece `lp` çıplak
+    /// "No default destination" hatasıyla dönmez.
+    fn cozulen_yazici(s: &Yazdirma) -> Result<String> {
+        if let Some(ad) = s.yazici.map(str::trim).filter(|a| !a.is_empty()) {
+            return Ok(ad.to_string());
+        }
+        if let Some(ad) = varsayilan_yazici() {
+            return Ok(ad);
+        }
+        let adlar = yazici_adlari();
+        match adlar.as_slice() {
+            [tek] => {
+                println!(
+                    "Varsayılan yazıcı tanımlı değil; tek kurulu yazıcı '{tek}' kullanılıyor."
+                );
+                println!("Kalıcı varsayılan için: lpoptions -d {tek}");
+                Ok(tek.clone())
+            }
+            [] => anyhow::bail!("{}", yazici_yardim_metni()),
+            _ => anyhow::bail!(
+                "Varsayılan yazıcı tanımlı değil. Kurulu yazıcılar: {}.\n\
+                 --yazici \"<ad>\" ile birini seçin ya da varsayılan tanımlayın: lpoptions -d <ad>",
+                adlar.join(", ")
+            ),
+        }
+    }
+
     /// Kurulu yazıcıları ve varsayılanı listeler.
     pub fn yazicilari_listele() -> Result<()> {
         if yolda_bul("lpstat").is_none() {
@@ -444,10 +603,77 @@ mod unix {
         if !hata.trim().is_empty() {
             eprintln!("{hata}");
         }
-        if !out.status.success() && hata.trim().is_empty() {
-            println!("(yazıcı yok — CUPS servisi kapalı olabilir: systemctl status cups)");
+        if yazici_adlari().is_empty() {
+            println!("{}", yazici_yardim_metni());
+        } else if let Some(ad) = varsayilan_yazici() {
+            println!("Varsayılan: {ad}");
+        } else {
+            println!(
+                "Varsayılan yazıcı tanımlı değil; program tek yazıcı varsa onu otomatik seçer."
+            );
         }
         Ok(())
+    }
+
+    /// Kuyruğun PPD'sindeki renk seçeneklerinden siyah-beyaz olanı bulur.
+    ///
+    /// CUPS'ta `ColorModel=Gray` genel bir değer değildir; her sürücü kendi
+    /// değerlerini bildirir (HP'de `KGray`, `CMYGray`, `RGB` gibi). Geçersiz
+    /// değer sessizce yok sayılır ve iş renkli basılır. Bu yüzden önce
+    /// `lpoptions -l` ile sürücünün gerçek değerleri okunur.
+    ///
+    /// Dönüş: her zaman `print-color-mode=monochrome`; PPD'de bulunursa
+    /// ayrıca `ColorModel=KGray` (yalnız siyah mürekkep) veya eşdeğeri.
+    fn siyah_beyaz_secenekleri(hedef: &str) -> Vec<String> {
+        let Ok(out) = std::process::Command::new("lpoptions")
+            .args(["-p", hedef, "-l"])
+            .env("LC_ALL", "C")
+            .output()
+        else {
+            return siyah_beyaz_ayikla("");
+        };
+        if !out.status.success() {
+            return siyah_beyaz_ayikla("");
+        }
+        siyah_beyaz_ayikla(&String::from_utf8_lossy(&out.stdout))
+    }
+
+    /// `lpoptions -l` metninden siyah-beyaz job seçeneklerini üretir.
+    /// Ayrı fonksiyon: yazıcı olmadan birim testle doğrulanabilir.
+    fn siyah_beyaz_ayikla(liste: &str) -> Vec<String> {
+        let mut secenekler = vec!["print-color-mode=monochrome".to_string()];
+        let mut adaylar: Vec<(String, Vec<String>)> = Vec::new();
+        for satir in liste.lines() {
+            let Some((anahtar, degerler)) = satir.split_once(':') else {
+                continue;
+            };
+            // "ColorModel/Output Mode" -> "ColorModel"
+            let anahtar = anahtar.split('/').next().unwrap_or("").trim();
+            if anahtar != "ColorModel" && anahtar != "ColorMode" {
+                continue;
+            }
+            let degerler: Vec<String> = degerler
+                .split_whitespace()
+                .map(|d| d.trim_start_matches('*').to_string())
+                .collect();
+            if !degerler.is_empty() {
+                adaylar.push((anahtar.to_string(), degerler));
+            }
+        }
+        // Tercih sırası: yalnız siyah mürekkep (KGray), sonra gri tonlar.
+        // CMYGray renkli mürekkeplerle gri üretir; metin için KGray daha iyidir.
+        for istenen in ["KGray", "Gray", "CMYGray", "Monochrome", "Black"] {
+            for (anahtar, degerler) in &adaylar {
+                if let Some(d) = degerler
+                    .iter()
+                    .find(|d| d.eq_ignore_ascii_case(istenen))
+                {
+                    secenekler.push(format!("{anahtar}={d}"));
+                    return secenekler;
+                }
+            }
+        }
+        secenekler
     }
 
     pub fn arka_uc_bul() -> ArkaUc {
@@ -476,15 +702,18 @@ mod unix {
                  Debian/Ubuntu: sudo apt install cups-client"
             ),
         };
+        let hedef = cozulen_yazici(s)?;
         let pdf_s = pdf
             .to_str()
             .context("çıktı yolu UTF-8 değil, yazdırma atlandı")?;
         let mut cmd = std::process::Command::new(&lp);
         cmd.arg("-n").arg(s.kopya.to_string());
-        if let Some(ad) = s.yazici {
-            cmd.arg("-d").arg(ad);
-        }
+        // `-d` her zaman açıkça verilir: sistem varsayılanı olmasa da çalışır.
+        cmd.arg("-d").arg(&hedef);
         cmd.arg("-o").arg("media=A4");
+        // Çıktı yüzleri A4 YATAY üretilir; sürücüye bunu açıkça söyle.
+        // Söylenmezse bazı sürücüler sayfayı portreye çevirip içeriği yan yatırır.
+        cmd.arg("-o").arg("orientation-requested=4");
         cmd.arg("-o").arg("print-scaling=none");
         cmd.arg("-o").arg(match s.duplex {
             "kisa" => "sides=two-sided-short-edge",
@@ -492,15 +721,26 @@ mod unix {
             _ => "sides=one-sided",
         });
         if !s.renkli {
-            cmd.arg("-o").arg("ColorModel=Gray");
-            cmd.arg("-o").arg("ColorMode=Monochrome");
+            let renk_sec = siyah_beyaz_secenekleri(&hedef);
+            // Yalnız print-color-mode varsa sürücü PPD'sinde renk modeli
+            // bildirilmemiş demektir; kullanıcıyı sessizce renkli bırakma.
+            if renk_sec.len() == 1 {
+                println!(
+                    "Uyarı: '{hedef}' sürücüsünde siyah-beyaz renk modeli bildirilmedi; \
+                     yalnız print-color-mode=monochrome gönderiliyor. \
+                     Renkli çıkarsa yazıcı sürücüsünü kontrol edin."
+                );
+            } else {
+                println!("Renk: siyah-beyaz ({})", renk_sec.join(", "));
+            }
+            for o in &renk_sec {
+                cmd.arg("-o").arg(o);
+            }
         }
         cmd.arg(pdf_s);
         println!(
-            "CUPS'a gönderiliyor: lp {} (kopya {}, duplex {})",
-            s.yazici.unwrap_or("(varsayılan)"),
-            s.kopya,
-            s.duplex
+            "CUPS'a gönderiliyor: lp -d {} (kopya {}, duplex {})",
+            hedef, s.kopya, s.duplex
         );
         let out = cmd.output().context("lp çalıştırılamadı")?;
         let std_out = String::from_utf8_lossy(&out.stdout);
@@ -509,14 +749,82 @@ mod unix {
             println!("{}", std_out.trim());
         }
         if !out.status.success() {
-            anyhow::bail!("lp başarısız: {}", std_err.trim());
+            let ayrinti = std_err.trim();
+            if ayrinti.to_ascii_lowercase().contains("does not exist") {
+                anyhow::bail!(
+                    "lp başarısız: '{hedef}' adlı yazıcı CUPS'ta yok.\n\
+                     Kurulu yazıcıları görmek için: --yazici-listele\n\
+                     Ayrıntı: {ayrinti}"
+                );
+            }
+            anyhow::bail!("lp başarısız (yazıcı: {hedef}): {ayrinti}");
         }
         if !std_err.trim().is_empty() {
             // CUPS bilinmeyen seçenekleri uyarı olarak yazar; iş yine de kuyruğa girer.
             println!("Uyarı: {}", std_err.trim());
         }
-        println!("Yazdırma kuyruğa verildi.");
+        println!("Yazdırma kuyruğa verildi (yazıcı: {hedef}).");
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod testler {
+        use super::*;
+
+        #[test]
+        fn varsayilan_ayiklanir() {
+            assert_eq!(
+                varsayilan_ayikla("system default destination: HP_Ink_Tank_310\n"),
+                Some("HP_Ink_Tank_310".into())
+            );
+        }
+
+        #[test]
+        fn varsayilan_yoksa_none() {
+            assert_eq!(varsayilan_ayikla("no system default destination\n"), None);
+            assert_eq!(varsayilan_ayikla(""), None);
+        }
+
+        #[test]
+        fn zamanlayici_durumu_ayiklanir() {
+            assert!(cups_calisiyor_ayikla("scheduler is running\n"));
+            assert!(!cups_calisiyor_ayikla("scheduler is not running\n"));
+            assert!(!cups_calisiyor_ayikla(""));
+        }
+
+        #[test]
+        fn usb_cihazlari_ayiklanir() {
+            let metin = "network beh\ndirect usb://HP/Ink%20Tank%20310%20series?serial=ABC\n\
+                         network ipp\ndirect hp:/usb/HP_Ink_Tank_310_series?serial=ABC\n";
+            assert_eq!(
+                cihazlari_ayikla(metin),
+                vec![
+                    "usb://HP/Ink%20Tank%20310%20series?serial=ABC".to_string(),
+                    "hp:/usb/HP_Ink_Tank_310_series?serial=ABC".to_string()
+                ]
+            );
+        }
+
+        #[test]
+        fn hp_kgray_renk_modeli_secilir() {
+            // Gerçek HP PPD satırı: Gray yok, KGray ve CMYGray var.
+            let liste = "PageSize/Media Size: *A4 A5\n\
+                         ColorModel/Output Mode: CMYGray KGray *RGB\n";
+            assert_eq!(
+                siyah_beyaz_ayikla(liste),
+                vec![
+                    "print-color-mode=monochrome".to_string(),
+                    "ColorModel=KGray".to_string()
+                ]
+            );
+        }
+
+        #[test]
+        fn renk_modeli_yoksa_tek_secenek_kalir() {
+            // Sürücü renk modeli bildirmiyorsa uydurma değer gönderme.
+            let sec = siyah_beyaz_ayikla("PageSize/Media Size: *A4\n");
+            assert_eq!(sec, vec!["print-color-mode=monochrome".to_string()]);
+        }
     }
 }
 
@@ -530,6 +838,14 @@ mod diger {
 
     pub fn yazici_adlari() -> Vec<String> {
         Vec::new()
+    }
+
+    pub fn varsayilan_yazici() -> Option<String> {
+        None
+    }
+
+    pub fn yazici_yardim_metni() -> String {
+        "Bu platformda yazıcı listeleme desteklenmiyor.".into()
     }
 
     pub fn yazicilari_listele() -> Result<()> {
@@ -554,13 +870,22 @@ mod diger {
 // ---------------------------------------------------------------------------
 
 #[cfg(windows)]
-pub use win::{altyapi_kur, arka_uc_bul, yazdir, yazici_adlari, yazicilari_listele};
+pub use win::{
+    altyapi_kur, arka_uc_bul, varsayilan_yazici, yazdir, yazici_adlari, yazici_yardim_metni,
+    yazicilari_listele,
+};
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-pub use unix::{altyapi_kur, arka_uc_bul, yazdir, yazici_adlari, yazicilari_listele};
+pub use unix::{
+    altyapi_kur, arka_uc_bul, varsayilan_yazici, yazdir, yazici_adlari, yazici_yardim_metni,
+    yazicilari_listele,
+};
 
 #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
-pub use diger::{altyapi_kur, arka_uc_bul, yazdir, yazici_adlari, yazicilari_listele};
+pub use diger::{
+    altyapi_kur, arka_uc_bul, varsayilan_yazici, yazdir, yazici_adlari, yazici_yardim_metni,
+    yazicilari_listele,
+};
 
 /// PDF'i seçilen yazıcıya gönderir.
 pub fn pdf_yazdir_sec(pdf: &Path, s: &Yazdirma) -> Result<()> {

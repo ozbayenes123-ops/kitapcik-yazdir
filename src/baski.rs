@@ -32,6 +32,75 @@ fn obj_f64(o: &Object) -> f64 {
     0.0
 }
 
+/// Sayısal bir PDF nesnesini (doğrudan ya da referansla) f64'e çevirir.
+fn obj_sayi_coz(doc: &Document, o: &Object) -> Option<f64> {
+    match o {
+        Object::Integer(i) => Some(*i as f64),
+        Object::Real(f) => Some(*f as f64),
+        Object::Reference(id) => match doc.get_object(*id).ok()? {
+            Object::Integer(i) => Some(*i as f64),
+            Object::Real(f) => Some(*f as f64),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// Sayfanın görüntüleme dönüşü (`/Rotate`). PDF'te kalıtımlıdır: sayfa
+/// sözlüğünde yoksa `Parent` zincirine bakılır. 0/90/180/270 döner.
+///
+/// Bu değer yoksayılırsa, tarayıcı/üretici yatay saklayıp 90° döndürdüğü
+/// portre sayfalar (ör. İran/Pers kitap PDF'leri) kitapçıkta yan yatar.
+fn sayfa_donusu(doc: &Document, sayfa: &Dictionary) -> i32 {
+    let mut dict: Option<&Dictionary> = Some(sayfa);
+    let mut derinlik = 0;
+    while let Some(d) = dict {
+        if let Ok(o) = d.get(b"Rotate") {
+            if let Some(v) = obj_sayi_coz(doc, o) {
+                let r = ((v.round() as i64) % 360 + 360) % 360;
+                return match r {
+                    90 => 90,
+                    180 => 180,
+                    270 => 270,
+                    _ => 0,
+                };
+            }
+        }
+        derinlik += 1;
+        if derinlik > 32 {
+            break;
+        }
+        dict = d
+            .get(b"Parent")
+            .ok()
+            .and_then(|o| o.as_reference().ok())
+            .and_then(|id| doc.get_object(id).ok())
+            .and_then(|o| o.as_dict().ok());
+    }
+    0
+}
+
+/// `/Rotate` ve CropBox kökenini tek bir görüntüleme matrisine çevirir.
+/// Dönen: (görüntüleme genişliği, görüntüleme yüksekliği, PDF `cm` matrisi).
+fn donus_uzayi(rot: i32, w: f64, h: f64, x0: f64, y0: f64) -> (f64, f64, String) {
+    let (dw, dh) = if rot == 90 || rot == 270 {
+        (h, w)
+    } else {
+        (w, h)
+    };
+    let mat = match rot {
+        // 90° saat yönü: (x,y) -> (y, w - x)
+        90 => format!("0 -1 1 0 {:.4} {:.4}", -y0, w + x0),
+        // 180°: (x,y) -> (w - x, h - y)
+        180 => format!("-1 0 0 -1 {:.4} {:.4}", w + x0, h + y0),
+        // 270° saat yönü (= 90° saat yönünün tersi): (x,y) -> (h - y, x)
+        270 => format!("0 1 -1 0 {:.4} {:.4}", h + y0, -x0),
+        // 0°: yalnızca kırpma kökenini kaydır
+        _ => format!("1 0 0 1 {:.4} {:.4}", -x0, -y0),
+    };
+    (dw, dh, mat)
+}
+
 /// Sayfa sözlüğünden (CropBox > MediaBox) genişlik/yükseklik ve sol-alt kökeni çıkar.
 /// Köken (x0, y0) önemlidir: tarama PDF'lerinde içerik MediaBox koordinatlarında
 /// durur, görünür alan ise CropBox'tır. Kökeni yok sayarsan tarayıcı yatağının
@@ -275,8 +344,13 @@ fn formlari_kur(
             .cloned()
             .unwrap_or_else(|_| Object::Dictionary(Dictionary::new()));
         let (w, h, x0, y0) = sayfa_olcusu_koken(&page_dict);
-        let icerik = sayfa_icerik_coz(doc, pid)
+        let rot = sayfa_donusu(doc, &page_dict);
+        let icerik_ham = sayfa_icerik_coz(doc, pid)
             .with_context(|| format!("sayfa {n} içeriği çözülemedi"))?;
+
+        // Görüntüleme uzayı: /Rotate 90/270 ise genişlik/yükseklik yer değiştirir.
+        // Matris, kırpma kökenini sıfıra çekip /Rotate'i tek adımda uygular.
+        let (dw, dh, mat) = donus_uzayi(rot, w, h, x0, y0);
 
         let mut form_dict = Dictionary::new();
         form_dict.set("Type", "XObject");
@@ -286,26 +360,21 @@ fn formlari_kur(
             vec![
                 Object::Integer(0),
                 Object::Integer(0),
-                Object::Real(w as f32),
-                Object::Real(h as f32),
+                Object::Real(dw as f32),
+                Object::Real(dh as f32),
             ],
         );
-        // CropBox kökeni sıfır değilse içeriği kaydır. Matrix kullanmak yerine
-        // içerik akışının başına cm yazıyoruz: formun BBox'ı kendi uzayında
-        // kalmalı, yoksa klip penceresi de kayar ve sayfa köşeye oturur.
-        let mut icerik = icerik;
-        if x0.abs() > 0.01 || y0.abs() > 0.01 {
-            let mut kaydirilmis = format!("q\n1 0 0 1 {:.4} {:.4} cm\n", -x0, -y0).into_bytes();
-            kaydirilmis.extend_from_slice(&icerik);
-            kaydirilmis.extend_from_slice(b"\nQ\n");
-            icerik = kaydirilmis;
-        }
+        // Matrix yerine içerik akışının başına cm yazıyoruz: formun BBox'ı kendi
+        // uzayında kalmalı, yoksa klip penceresi de kayar ve sayfa köşeye oturur.
+        let mut icerik = format!("q\n{mat} cm\n").into_bytes();
+        icerik.extend_from_slice(&icerik_ham);
+        icerik.extend_from_slice(b"\nQ\n");
         form_dict.set("Resources", resources);
 
         let form_id = doc.new_object_id();
         doc.objects
             .insert(form_id, Object::Stream(Stream::new(form_dict, icerik)));
-        map.insert(n, (form_id, w, h));
+        map.insert(n, (form_id, dw, dh));
     }
     Ok(map)
 }
@@ -630,5 +699,31 @@ mod tests {
         assert_eq!(ascii85_coz(b"z").unwrap(), vec![0, 0, 0, 0]);
         // Beyaz boşluklar yoksayılır
         assert_eq!(ascii85_coz(b"9jqo^\n 9jqo^").unwrap(), b"Man Man ");
+    }
+
+    #[test]
+    fn rotasyon_boyut_ve_matris() {
+        // Yatay saklanmış (842×595), /Rotate 270 ile portre görünen sayfa.
+        let (dw, dh, mat) = donus_uzayi(270, 841.89, 595.28, 1.9, 0.0);
+        assert!((dw - 595.28).abs() < 0.01);
+        assert!((dh - 841.89).abs() < 0.01);
+        assert!(mat.starts_with("0 1 -1 0"), "270° matrisi: {mat}");
+
+        // 90° saat yönü ve 180° de boyutları yer değiştirir / çevirir.
+        let (dw90, dh90, mat90) = donus_uzayi(90, 841.89, 595.28, 1.9, 0.0);
+        assert!((dw90 - 595.28).abs() < 0.01);
+        assert!((dh90 - 841.89).abs() < 0.01);
+        assert!(mat90.starts_with("0 -1 1 0"), "90° matrisi: {mat90}");
+
+        let (dw180, dh180, mat180) = donus_uzayi(180, 841.89, 595.28, 1.9, 0.0);
+        assert!((dw180 - 841.89).abs() < 0.01);
+        assert!((dh180 - 595.28).abs() < 0.01);
+        assert!(mat180.starts_with("-1 0 0 -1"), "180° matrisi: {mat180}");
+
+        // 0°: yalnızca CropBox kökeni kaydırılır.
+        let (dw0, dh0, mat0) = donus_uzayi(0, 841.89, 595.28, 1.9, 0.0);
+        assert!((dw0 - 841.89).abs() < 0.01);
+        assert!((dh0 - 595.28).abs() < 0.01);
+        assert!(mat0.starts_with("1 0 0 1"), "0° matrisi: {mat0}");
     }
 }

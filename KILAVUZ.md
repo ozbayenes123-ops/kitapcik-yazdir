@@ -52,12 +52,16 @@ Tüm seçenekler: `--mod kitapcik|ikiup|duz`, `--grup`, `--kenar-boslugu-mm`,
 | Ölçek | **%100 / Gerçek boyut**, Sığdır kapalı | Sayfalar kayar, sıra bozulur |
 | Kalite | 600 dpi | Metin için yeterlidir |
 
-## 5. Tek yüzlü yazıcıda manuel duplex
+## 5. Manuel çift taraflı (otomatik duplex yoksa)
 
-1. Çift taraflıyı **Tek yüz** yapın, üretime aynen devam edin.
-2. Önce tüm yaprakların ÖN yüzlerini basın.
-3. Desteyi **çevirmeden, aynı yönde** girişe geri koyun, ARKA yüzleri basın.
-4. Önce 4 sayfayla prova yapın.
+HP Ink Tank 310 gibi otomatik duplex ünitesi olmayan yazıcılarda:
+
+1. Yazıcı olarak **Manual_Duplex**'i seçin, çift taraflıyı **Uzun kenar** yapın.
+2. **3) Yazdır**'a basın: ön yüzler basılır, arka yüzler bekletilir.
+3. Önler bitince desteyi **uzun kenardan** (kitap sayfası gibi) çevirip boş yüzü yazıcıya gelecek şekilde tepsiye koyun.
+4. Bildirimdeki **Print backs**'e veya terminalde `manual-duplex release` komutuna basın.
+
+İlk kullanımda 4 sayfalık test: `manual-duplex test`. Arkalar ters/karışık gelirse `manual-duplex config ROTATE_BACKS toggle` veya `manual-duplex config REVERSE_BACKS toggle`.
 
 ## 6. Sorun giderme
 
@@ -65,7 +69,9 @@ Tüm seçenekler: `--mod kitapcik|ikiup|duz`, `--grup`, `--kenar-boslugu-mm`,
 - **Sayfalar kaymış:** Kenar/orta payını büyütün (önce 4/6 mm).
 - **Sonda boş sayfa:** Normaldir (4'ün katına tamamlanır).
 - **"İçerik çözülemedi":** PDF'i "Microsoft Print to PDF" ile yeniden kaydedip onu girdi yapın.
-- **Yazıcı listesi boş:** Yazıcı kapalı/bağlantısız olabilir; GUI'de Yenile'ye basın.
+- **Yazıcı listesi boş:** Yazıcı kapalı/bağlantısız olabilir ya da CUPS'a eklenmemiştir; GUI'de Yenile'ye basın, "Nasıl eklerim?" yardımına bakın.
+- **"No default destination" / "lp başarısız":** CUPS'ta tanımlı yazıcı yok veya varsayılan seçili değil. Tek yazıcı varsa program onu otomatik seçer; kontrol: `lpstat -p -d`, varsayılan: `lpoptions -d <ad>`.
+- **HP USB yazıcı görünmüyor:** `sudo pacman -S hplip` kurup yazıcıyı sistem ayarlarından veya http://localhost:631 üzerinden ekleyin.
 - **Parolalı PDF:** Desteklenmez; parolasını kaldırıp deneyin.
 
 ## 7. Terimler

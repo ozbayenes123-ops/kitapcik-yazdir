@@ -35,11 +35,18 @@ FASİKÜL (KALIN KİTAP)
 20 sayfadan kalın işlerde zımba tutmaz; Fasikül'e 16/20/28/32 yazın.
 Her deste ayrı basılıp katlanır, desteler üst üste konur.
 
-TEK YÜZLÜ YAZICIDA MANUEL DUPLEX
---------------------------------
-Çift taraflı ayarını "Tek yüz" yapın, önce tüm ÖN yüzleri basan PDF'i
-üretmek için programda aynen devam edin; sonra kağıt destesini ÇEVİRMEDEN
-(aynı yönde) girişe koyup ARKA yüzleri basın. Deneme için 4 sayfayla prova yapın.
+MANUEL ÇİFT TARAFLI (otomatik duplex yoksa)
+-------------------------------------------
+HP Ink Tank 310 gibi otomatik duplex ünitesi olmayan yazıcılarda:
+1) Yazıcı olarak "Manual_Duplex"i seçin, çift taraflıyı "Uzun kenar" yapın.
+2) "3) Yazdır"a basın: ön yüzler basılır, arka yüzler bekletilir.
+3) Önler bitince desteyi UZUN kenardan (kitap sayfası gibi) çevirip
+   boş yüzü yazıcıya gelecek şekilde tepsiye koyun.
+4) Bildirimdeki "Print backs"e veya terminalde `manual-duplex release`
+   komutuna basın; arka yüzler basılır.
+İlk kullanımda 4 sayfalık test: `manual-duplex test`.
+Arkalar ters/karışık gelirse: `manual-duplex config ROTATE_BACKS toggle`
+veya `manual-duplex config REVERSE_BACKS toggle`.
 
 SORUN GİDERME
 -------------
@@ -48,7 +55,13 @@ SORUN GİDERME
 • Sonda boş sayfa var → Normaldir: 4'ün katına tamamlanır.
 • "İçerik çözülemedi" → PDF'i bir kez "Yazdır > PDF olarak kaydet" ile yeniden
   kaydedip onu girdi yapın.
-• Yazıcı listesi boş → Yazıcınız kapalı ya da USB'de olabilir; "Yenile"ye basın.
+• Yazıcı listesi boş → Yazıcınız kapalı, USB'de değil ya da CUPS'a hiç
+  eklenmemiş olabilir; "Yenile"ye basın. Program hiç yazıcı bulamazsa
+  "Nasıl eklerim?" düğmesiyle adım adım yol gösterir.
+• "No default destination" / "lp başarısız" → CUPS'ta tanımlı yazıcı yok ya da
+  varsayılan seçili değil. Tek yazıcı varsa program onu kendisi seçer.
+  Kontrol: lpstat -p -d   •  Varsayılan tanımla: lpoptions -d <ad>
+  Hiç yazıcı yoksa: sistem ayarları → Yazıcılar ya da http://localhost:631
 
 LINUX (CUPS)
 ------------

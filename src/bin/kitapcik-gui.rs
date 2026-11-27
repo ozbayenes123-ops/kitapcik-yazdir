@@ -33,6 +33,7 @@ struct Gui {
     kat_cizgisi: bool,
     // Yazıcı bölümü
     yazicilar: Vec<String>,
+    varsayilan: Option<String>,
     yazici_sec: usize, // 0 = varsayılan
     kopya: String,
     cift: Cift,
@@ -50,6 +51,22 @@ struct Gui {
 impl Default for Gui {
     fn default() -> Self {
         let yazicilar = yazici::yazici_adlari();
+        let varsayilan = yazici::varsayilan_yazici();
+        // manual-duplex kuruluysa onu öne al: tek "Yazdır" ile önler basılsın,
+        // arkalar bekletilsin. Kullanıcı isterse listeden HP'yi seçebilir.
+        let manuel_idx = yazicilar.iter().position(|a| a == "Manual_Duplex");
+        let yazici_sec = manuel_idx.map(|i| i + 1).unwrap_or_else(|| {
+            if varsayilan.is_none() && !yazicilar.is_empty() {
+                1
+            } else {
+                0
+            }
+        });
+        let cift = if manuel_idx.is_some() {
+            Cift::Uzun
+        } else {
+            Cift::Kisa
+        };
         Self {
             girdi: String::new(),
             cikti: String::new(),
@@ -61,9 +78,10 @@ impl Default for Gui {
             orta: 6.0,
             kat_cizgisi: true,
             yazicilar,
-            yazici_sec: 0,
+            varsayilan,
+            yazici_sec,
             kopya: "1".into(),
-            cift: Cift::Kisa,
+            cift,
             renkli: true,
             koyu: tema_yukle(),
             arka_uc: yazici::arka_uc_adi().into(),
@@ -226,8 +244,14 @@ impl Gui {
             kat_cizgisi: self.kat_cizgisi,
         };
         let sonuc = match self.mod_ {
-            Mod::Kitapcik => baski::kitapcik_pdf_uret(&girdi, &cikti, &secili, grup, &ayar)
-                .map(|r| format!("{} fasikül, {} A4 yüz ({} yaprak)", r.fasikul, r.yuz, r.yaprak)),
+            Mod::Kitapcik => {
+                baski::kitapcik_pdf_uret(&girdi, &cikti, &secili, grup, &ayar).map(|r| {
+                    format!(
+                        "{} fasikül, {} A4 yüz ({} yaprak)",
+                        r.fasikul, r.yuz, r.yaprak
+                    )
+                })
+            }
             Mod::Ikiup => baski::ikiup_pdf_uret(&girdi, &cikti, &secili, &ayar)
                 .map(|r| format!("{} A4 yüz", r.yuz)),
             Mod::Duz => duz_kopyala(&girdi, &cikti, &secili).map(|_| "düz sıralı".into()),
@@ -251,7 +275,13 @@ impl Gui {
             self.gunluk("Çıktı dosyası yok — önce Üret'e basın.");
             return;
         }
+        if self.yazicilar.is_empty() && self.varsayilan.is_none() {
+            self.gunluk(&yazici::yazici_yardim_metni());
+            self.gunluk("Yazdırma iptal edildi. Yazıcıyı ekledikten sonra Yenile'ye basın.");
+            return;
+        }
         let kopya: u32 = self.kopya.trim().parse().unwrap_or(1);
+        let manuel = self.secili_yazici() == Some("Manual_Duplex");
         let sec = yazici::Yazdirma {
             yazici: self.secili_yazici(),
             kopya,
@@ -259,7 +289,16 @@ impl Gui {
             renkli: self.renkli,
         };
         match yazici::pdf_yazdir_sec(Path::new(&self.cikti), &sec) {
-            Ok(()) => self.gunluk("Yazdırma kuyruğa verildi."),
+            Ok(()) => {
+                self.gunluk("Yazdırma kuyruğa verildi.");
+                if manuel {
+                    self.gunluk("Manual_Duplex: ön yüzler basılıyor; arka yüzler bekletilecek.");
+                    self.gunluk(
+                        "Önler bitince kağıdı uzun kenardan çevirip `manual-duplex release` \
+                         çalıştırın (veya bildirimdeki 'Print backs').",
+                    );
+                }
+            }
             Err(e) => self.gunluk(&format!("Yazdırma hatası: {e:#}")),
         }
     }
@@ -276,19 +315,44 @@ impl Gui {
         }
         #[cfg(not(windows))]
         {
-            let _ = std::process::Command::new("xdg-open").arg(&self.cikti).spawn();
+            let _ = std::process::Command::new("xdg-open")
+                .arg(&self.cikti)
+                .spawn();
         }
         self.gunluk("Çıktı varsayılan PDF okuyucuda açıldı.");
     }
 
     fn yazicilari_yenile(&mut self) {
         self.yazicilar = yazici::yazici_adlari();
-        self.yazici_sec = 0;
+        self.varsayilan = yazici::varsayilan_yazici();
+        let manuel_idx = self.yazicilar.iter().position(|a| a == "Manual_Duplex");
+        self.yazici_sec = manuel_idx.map(|i| i + 1).unwrap_or_else(|| {
+            if self.varsayilan.is_none() && !self.yazicilar.is_empty() {
+                1
+            } else {
+                0
+            }
+        });
+        if manuel_idx.is_some() {
+            self.cift = Cift::Uzun;
+        }
         self.arka_uc = yazici::arka_uc_adi().to_string();
-        if self.yazicilar.is_empty() {
-            self.gunluk("Yazıcı bulunamadı (yazıcı kapalı ya da bağlantısız olabilir).");
+        if let Some(ad) = &self.varsayilan {
+            self.gunluk(&format!(
+                "{} yazıcı bulundu; varsayılan: {ad}.",
+                self.yazicilar.len()
+            ));
+        } else if self.yazicilar.is_empty() {
+            self.gunluk(&yazici::yazici_yardim_metni());
         } else {
-            self.gunluk(&format!("{} yazıcı bulundu.", self.yazicilar.len()));
+            self.gunluk(&format!(
+                "{} yazıcı bulundu; varsayılan tanımlı değil — '{}' seçildi.",
+                self.yazicilar.len(),
+                self.yazicilar[0]
+            ));
+        }
+        if manuel_idx.is_some() {
+            self.gunluk("Manual_Duplex seçildi: önler basılacak, arkalar bekletilecek.");
         }
     }
 
@@ -334,7 +398,11 @@ fn duz_kopyala(girdi: &Path, cikti: &Path, secili: &[u32]) -> anyhow::Result<()>
         num_to_id.insert(n, id);
     }
     let root = doc.trailer.get(b"Root")?.as_reference()?;
-    let pages_id = doc.get_object(root)?.as_dict()?.get(b"Pages")?.as_reference()?;
+    let pages_id = doc
+        .get_object(root)?
+        .as_dict()?
+        .get(b"Pages")?
+        .as_reference()?;
     let kids: Vec<Object> = secili
         .iter()
         .map(|n| Object::Reference(num_to_id[n]))
@@ -463,13 +531,8 @@ fn islem_dugmesi(ui: &mut egui::Ui, metin: &str, renk: egui::Color32) -> egui::R
 }
 
 fn bolum_baslik(metin: &str, acik: bool, renk: egui::Color32) -> egui::CollapsingHeader {
-    egui::CollapsingHeader::new(
-        egui::RichText::new(metin)
-            .size(16.0)
-            .strong()
-            .color(renk),
-    )
-    .default_open(acik)
+    egui::CollapsingHeader::new(egui::RichText::new(metin).size(16.0).strong().color(renk))
+        .default_open(acik)
 }
 
 /// Tema seçimi %LOCALAPPDATA%\KitapcikYazdir\tema.txt içinde saklanır.
@@ -656,14 +719,18 @@ impl eframe::App for Gui {
                 ui.horizontal(|ui| {
                     ui.label("Yazıcı:");
                     let mut sec = self.yazici_sec;
+                    let varsayilan_etiketi = match &self.varsayilan {
+                        Some(ad) => format!("Varsayılan ({ad})"),
+                        None => "Varsayılan yok".to_string(),
+                    };
                     egui::ComboBox::from_id_salt("yazici")
                         .selected_text(if sec == 0 {
-                            "Varsayılan yazıcı".to_string()
+                            varsayilan_etiketi.clone()
                         } else {
                             self.yazicilar.get(sec - 1).cloned().unwrap_or_default()
                         })
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut sec, 0, "Varsayılan yazıcı");
+                            ui.selectable_value(&mut sec, 0, &varsayilan_etiketi);
                             for (i, ad) in self.yazicilar.iter().enumerate() {
                                 ui.selectable_value(&mut sec, i + 1, ad);
                             }
@@ -673,6 +740,24 @@ impl eframe::App for Gui {
                         self.yazicilari_yenile();
                     }
                 });
+                if self.yazicilar.is_empty() && self.varsayilan.is_none() {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(220, 90, 90),
+                            "Tanımlı yazıcı yok.",
+                        );
+                        if ui.button("Nasıl eklerim?").clicked() {
+                            self.gunluk(&yazici::yazici_yardim_metni());
+                        }
+                    });
+                } else if self.secili_yazici() == Some("Manual_Duplex") {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(20, 120, 90),
+                        "Manuel çift taraflı: önler basılır, arkalar bekletilir. \
+                         Önler bitince kağıdı uzun kenardan çevirip `manual-duplex release` \
+                         çalıştırın.",
+                    );
+                }
                 ui.horizontal(|ui| {
                     ui.label("Çift taraflı:");
                     ui.radio_value(&mut self.cift, Cift::Kisa, "Kısa kenar (önerilen)");
@@ -736,7 +821,7 @@ impl eframe::App for Gui {
                 logo_ciz(ui, 22.0);
                 ui.label(
                     egui::RichText::new(
-                        "Kitapçık Yazdır v0.3  •  A4 Yatay  •  Kısa kenar duplex  •  Ölçek %100",
+                        "Kitapçık Yazdır v0.4.2  •  A4 Yatay  •  Kısa kenar duplex  •  Ölçek %100",
                     )
                     .size(13.0)
                     .color(self.alt_rengi()),

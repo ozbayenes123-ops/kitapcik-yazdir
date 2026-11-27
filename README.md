@@ -90,12 +90,15 @@ Elle derleme: `cargo build --release` → `target/release/kitapcik-yazdir` (CLI)
 `gtk3` gerekir; çoğu masaüstü dağıtımında hazır gelir.
 
 **Yazdırma (CUPS):** program `lpstat` ile yazıcıları listeler, `lp` ile kuyruğa gönderir;
-A4 + %100 ölçek + çift taraflı seçeneklerini kendisi verir.
+A4 + %100 ölçek + çift taraflı seçeneklerini kendisi verir. Varsayılan yazıcı tanımlı
+değilse tek kurulu yazıcıyı otomatik seçer; hiç yazıcı yoksa `No default destination`
+yerine yazıcı ekleme adımlarını gösterir.
 
 ```bash
 sudo pacman -S cups cups-filters && sudo systemctl enable --now cups   # Arch/CachyOS
 sudo apt install cups cups-client                                      # Debian/Ubuntu
-# yazıcı ekleme: http://localhost:631
+# HP USB yazıcılar için: sudo pacman -S hplip
+# yazıcı ekleme: sistem ayarları → Yazıcılar ya da http://localhost:631
 ```
 
 Windows'ta yazdırma SumatraPDF / Adobe / Foxit üzerinden yürür; Linux'ta bu yol yerine
@@ -104,7 +107,8 @@ CUPS kullanılır. Diğer her şey (impozisyon, önizleme, fasikül, ölçüler)
 ## Sınırlamalar
 
 - Şifreli (parolalı) PDF'ler açılamaz.
-- Sayfa `/Rotate` değeri yoksayılır (çoğu kitapta 0'dır).
+- `/Rotate` (90/180/270) sayfa dönüşü desteklenir; tarayıcı/üretici sayfayı
+  yatay saklayıp döndürdüğü PDF'lerde içerik kitapçıkta yan yatmaz.
 - Eski sayfa nesneleri dosyada yetim kalır; çıktı biraz şişer, zararsızdır.
 
 ## Lisans
